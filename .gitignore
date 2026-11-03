@@ -1,0 +1,21 @@
+# Python / Django
+venv/
+.venv/
+__pycache__/
+*.pyc
+db.sqlite3
+staticfiles/
+
+# Секреты (в репозиторий кладём только .env.example)
+.env
+
+# Node / React / Phaser
+node_modules/
+dist/
+build/
+
+# Редакторы и система
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
