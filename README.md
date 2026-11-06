@@ -14,10 +14,11 @@ Django + Django REST Framework, PostgreSQL, React, Phaser (в разработк
 ## Запуск бэкенда
 Нужны: Git, Python 3.10+, Docker Desktop.
 
-1. `git clone <ссылка на репозиторий>` и `cd KOMOREBI`
+1. `git clone <ссылка на репозиторий>`, `cd KOMOREBI`, `git checkout dev`
 2. `docker compose up -d` (запускает PostgreSQL)
-3. `cd backend`
-4. `python -m venv .venv`
+♥ Переход в PyCharm ♥ 
+3. `cd backend` (или прописываем полный путь)
+4. `python -m venv .venv` (или `py -m venv .venv`, если не работает прошлая команда)
 5. Активировать: `.venv\Scripts\activate` (Windows) или `source .venv/bin/activate` (Mac/Linux)
 6. `pip install -r requirements.txt`
 7. Скопировать `.env.example` в `.env` (`copy .env.example .env` на Windows)
