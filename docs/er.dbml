@@ -1,0 +1,156 @@
+Table user {
+  id integer [pk]
+  username varchar [not null]
+  email varchar [not null, unique]
+  timezone varchar [not null, default: 'Europe/Moscow', note: 'IANA, напр. Europe/Moscow']
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table profile {
+  user_id integer [pk, ref: - user.id]
+  garden_level integer [not null, ref: > garden_level.level, default: 1]
+  registered_at timestamp [not null, default: `now()`]
+}
+
+Table garden_level {
+  level integer [pk]
+  min_days integer [not null, default: 0, note: 'минимум дней с registered_at, >= 0']
+  min_items integer [not null, default: 0, note: 'минимум user_item у пользователя; считаются все, без фильтра по state']
+  reward_amount integer [not null, default: 0, note: 'семечки за повышение; transaction.reason=level_up']
+}
+
+Table task {
+  id integer [pk]
+  user_id integer [not null, ref: > user.id]
+  parent_id integer [ref: > task.id, note: 'nullable: пусто = задача, заполнено = шаг']
+  title varchar [not null]
+  status varchar [not null, default: 'todo', note: 'todo, in_progress, done, postponed']
+  source varchar [not null, default: 'manual', note: 'llm, manual']
+  difficulty varchar [note: 'nullable: easy, medium, hard; пусто пока не подтверждена; от неё зависит награда']
+  estimate_min integer [note: 'nullable: оценка длительности от LLM; нужна для сверки плана в день']
+  due_date date [note: 'nullable: дедлайн может отсутствовать']
+  plan_date date [note: 'nullable: на какой день запланировано']
+  order_index integer [not null, default: 0, note: 'при равенстве сортировать по created_at']
+  stuck_count integer [not null, default: 0, note: 'сколько раз нажали «Мне трудно начать»']
+  created_at timestamp [not null, default: `now()`]
+  started_at timestamp [note: 'nullable: нажали Начать']
+  completed_at timestamp [note: 'nullable: завершено']
+}
+
+Table task_reschedule {
+  id integer [pk]
+  user_id integer [not null, ref: > user.id]
+  task_id integer [not null, ref: > task.id]
+  old_date date [note: 'nullable: если задача была без даты']
+  new_date date [not null]
+  reason varchar [note: 'nullable: e.g. overslept, low_energy']
+  created_at timestamp [not null, default: `now()`]
+
+  indexes {
+    user_id
+    task_id
+    created_at
+  }
+}
+
+Table input_log {
+  id integer [pk]
+  user_id integer [not null, ref: > user.id]
+  raw_text text [not null]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table llm_parse {
+  id integer [pk]
+  input_log_id integer [not null, ref: > input_log.id]
+  raw_json jsonb [not null]
+  schema_valid boolean [not null]
+  model_version varchar [not null]
+  created_at timestamp [not null, default: `now()`]
+
+  indexes {
+    input_log_id
+    created_at
+  }
+}
+
+Table task_parse_link {
+  task_id integer [not null, ref: > task.id]
+  llm_parse_id integer [not null, ref: > llm_parse.id]
+  indexes {
+    (task_id, llm_parse_id) [pk]
+  }
+}
+
+Table focus_session {
+  id integer [pk]
+  user_id integer [not null, ref: > user.id]
+  task_id integer [ref: > task.id, note: 'nullable: таймер можно запустить без задачи']
+  duration_min integer [not null, note: 'плановая']
+  energy varchar [not null, default: 'normal', note: 'low, normal, high']
+  helped boolean [not null, default: false, note: 'подошёл ли способ (заполняется после)']
+  started_at timestamp [not null, default: `now()`]
+  ended_at timestamp [note: 'nullable: пока идёт сессия']
+}
+
+Table wallet {
+  user_id integer [pk, ref: - user.id]
+  balance integer [not null, default: 0, note: 'семечки, >= 0 (CHECK в миграции)']
+}
+
+Table transaction {
+  id integer [pk]
+  user_id integer [not null, ref: > user.id]
+  amount integer [not null, note: 'MVP: только положительный (CHECK amount > 0 в миграции); purchase отложен']
+  balance_after integer [not null, note: 'баланс после операции — для прозрачности и отладки']
+  reason varchar [not null, note: 'step_done, task_done, session_done, return_bonus, level_up']
+  task_id integer [ref: > task.id, note: 'nullable: для return_bonus/level_up и сессий без задачи']
+  created_at timestamp [not null, default: `now()`]
+
+  indexes {
+    user_id
+    created_at
+  }
+}
+
+Table reward_rule {
+  id integer [pk]
+  action varchar [not null, note: 'step_done, task_done, session_done, return_bonus; level_up — через garden_level.reward_amount']
+  difficulty varchar [note: 'nullable: easy, medium, hard или пусто = для всех']
+  amount integer [not null]
+  daily_limit integer [note: 'nullable: сколько раз в день платим на пользователя; пусто = без лимита; считается в коде']
+  active boolean [not null, default: true, note: 'MVP: переключается вручную, история не хранится']
+}
+
+Table item {
+  id integer [pk]
+  name varchar [not null]
+  category varchar [not null, note: 'seed, decor, tree, flower']
+  sprite varchar [not null, note: 'имя файла картинки']
+}
+
+Table user_item {
+  id integer [pk]
+  user_id integer [not null, ref: > user.id]
+  item_id integer [not null, ref: > item.id]
+}
+
+Table preferences {
+  user_id integer [pk, ref: - user.id]
+  adaptation_enabled boolean [not null, default: true]
+  preferred_session_min integer [note: 'nullable: если не выбран — дефолт в коде']
+}
+
+Table adaptation_note {
+  id integer [pk]
+  user_id integer [not null, ref: > user.id]
+  insight varchar [not null]
+  source varchar [not null, note: 'MVP: только stats']
+  active boolean [not null, default: true]
+  created_at timestamp [not null, default: `now()`]
+  deactivated_at timestamp [note: 'nullable: когда пользователь отключил']
+
+  indexes {
+    user_id
+  }
+}
